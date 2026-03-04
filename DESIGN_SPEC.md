@@ -2,7 +2,7 @@
 
 > Produced by: UI Designer ORCA (Stage 3: design_review — enhanced)
 > Date: 2026-03-04
-> Revision: 2 — added ToastNotification, MobileNavDrawer, ViewerLoadingState, focus states, scrollbar/selection styling, icon spec, data-testid map
+> Revision: 3 — added window rendering, hybrid badge, CSS Module conventions, page metadata, loading skeletons, appendix F–H
 > Status: Final — ready for Development Agent implementation
 
 ---
@@ -69,6 +69,10 @@ The visual language draws from architectural drafting tables: dark matte surface
   --color-room-office:      #7ee787;   /* Office/Study — sage green */
   --color-room-dining:      #d2a8ff;   /* Dining — soft purple */
   --color-room-default:     #8b949e;   /* Unknown/Other — muted gray */
+
+  /* ── Window Rendering ── */
+  --color-window-glass:     rgba(88, 166, 255, 0.25);  /* Translucent blue pane */
+  --color-window-frame:     #8b949e;                    /* Muted gray frame lines */
 }
 ```
 
@@ -181,6 +185,9 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
 | **Tablet** | 768px – 1024px | 8 | 1.25rem | 1.25rem |
 | **Desktop** | > 1024px | 12 | 1.5rem | 1.5rem |
 
+### Touch Target Minimum (Mobile & Tablet)
+All interactive elements (buttons, links, nav items, room list items, toolbar icons) must meet a **minimum tap target of 44×44px** on viewports < 1024px. If the visual size is smaller (e.g., a 40×40px icon button), use padding or a transparent hit area to reach the 44px minimum. This is a WCAG 2.5.5 requirement.
+
 ### Page Layout Patterns
 
 #### Landing Page (`/`)
@@ -282,7 +289,7 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
   - Below zone: "Maximum file size: 20MB" in `--text-caption` `--color-text-faint`
 - **Drag-over state**: Border becomes solid `--color-accent-amber`, background gains `--color-glow-amber`, icon pulses with subtle scale animation
 - **File selected state**: File name appears with PDF icon, file size in `--font-mono`, and a small "Remove" text button in `--color-text-muted`
-- **Upload button**: Appears below the zone when a file is selected. Same style as Hero primary CTA. "Process Floor Plan →"
+- **Upload button**: "Process Floor Plan →" — always rendered below the zone but **disabled when no file is selected**: `opacity: 0.4`, `cursor: not-allowed`, `pointer-events: none`, no hover effects. When a file is selected: transitions to enabled state (`opacity: 1`, `cursor: pointer`) over `--duration-normal`. Same visual style as Hero primary CTA.
 
 #### 5.7 ProcessingStatus
 - **Role**: Real-time progress indicator during PDF parsing
@@ -306,11 +313,15 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
 - **Style**: `--color-bg-surface` with left border 3px solid `--color-danger`, `--radius-md`, padding `--space-6`
 - **Content**: Error icon (triangle-exclamation, `--color-danger`), error title in `--text-h4` `--color-text-heading`, description in `--text-body-sm` `--color-text-muted`
 - **Action**: "Try Again" button below, ghost style like hero secondary CTA
-- **Error types to display**:
-  - File too large → "File exceeds 20MB limit"
-  - Invalid file type → "Please upload a PDF file"
-  - Server error → "Something went wrong — please try again"
-  - Missing API key → "Service temporarily unavailable" (never expose internal details)
+- **Error types to display** (all must have visual treatment):
+  - File too large (413) → "File exceeds 20MB limit. Please upload a smaller PDF."
+  - Invalid file type (400) → "Please upload a PDF file. Other formats are not supported."
+  - Empty PDF (400) → "This PDF appears to be empty. Please check the file."
+  - No structure detected (422) → "No floor plan detected. Ensure the PDF contains a visible floor plan."
+  - AI extraction failed (500) → "AI extraction failed. Please try a different PDF."
+  - Missing API key (500) → "Service temporarily unavailable. Please try again later." (never expose internal details)
+  - Network timeout (408) → "Upload timed out. Please check your connection and try again."
+  - Generic server error (500) → "Something went wrong — please try again."
 
 ---
 
@@ -331,9 +342,12 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
 - **Room floors**: Transparent colored polygons per room type using `--color-room-*` at 0.35 opacity, with 0.7 opacity border stroke
 - **Room labels**: Billboard text sprites (always face camera). Room name in `--font-display` weight 600, area below in `--font-mono`. White text with subtle dark drop shadow for legibility against any background. Positioned at room centroid, Y=0.05m (just above floor).
 - **Doors**: Gaps in walls. Door swing shown as a thin arc line in `--color-accent-amber` at 0.4 opacity.
+- **Windows**: Each window is rendered as a recessed notch in the parent wall (looked up via `wallIndex`). The notch depth is half the wall thickness. A translucent blue pane fills the notch using `--color-window-glass` (MeshStandardMaterial, transparent, opacity 0.25, roughness 0.1, metalness 0.3 for a subtle glass sheen). Two thin horizontal frame lines in `--color-window-frame` at 1/3 and 2/3 height of the opening give a mullion effect. Window width comes from `Window.width` in the schema.
 - **Lighting**: Ambient light (intensity 0.6, color #f5f0e8 — warm) + Directional light (intensity 0.8, position top-right, casts soft shadows onto floor plane)
 - **Camera**: Perspective, default position looking down at 45° angle, centered on model bounding box
 - **Controls**: OrbitControls from @react-three/drei — left-drag orbits, right-drag pans, scroll zooms. Damping enabled (factor 0.1) for smooth feel.
+- **Touch controls (mobile)**: Single-finger drag orbits (same as desktop left-drag). Two-finger pinch zooms in/out proportionally. Two-finger drag pans. OrbitControls touch support must be explicitly enabled.
+- **Touch CSS**: The canvas wrapper `<div>` must have `touch-action: none` to prevent pinch-to-zoom from conflicting with browser page zoom.
 - **Initial animation**: On load, camera starts slightly further back and zooms to default position over 800ms with ease-out
 
 #### 5.11 ViewerToolbar
@@ -356,7 +370,10 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
   - **Session Header** (padding `--space-6`):
     - "Floor Plan" title in `--text-h3`, `--color-text-heading`
     - Session ID in `--font-mono` `--text-caption` `--color-text-faint`
-    - Extraction method badge: small pill, `--radius-full`, height 22px. "VECTOR" in `--color-success` background (10% opacity) with `--color-success` text, or "AI VISION" in `--color-accent-amber` background (10% opacity) with `--color-accent-amber` text. Uses `--text-label`.
+    - Extraction method badge: small pill, `--radius-full`, height 22px. Uses `--text-label`:
+      - `"vector"` → "VECTOR" — `--color-success` background (10% opacity), `--color-success` text
+      - `"vision"` → "AI VISION" — `--color-accent-amber` background (10% opacity), `--color-accent-amber` text
+      - `"hybrid"` → "HYBRID" — `--color-accent-blue` background (10% opacity), `--color-accent-blue` text
     - Confidence indicator: "High / Medium / Low" in `--text-caption` with corresponding color dot
   - **Divider**: 1px `--color-border-subtle`
   - **Room List** (scrollable, padding `--space-4`):
@@ -368,13 +385,32 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
       - Right: Chevron icon, `--color-text-faint`
       - Default: transparent background
       - Hover: `--color-bg-elevated` background, transition 150ms
-      - Click: Animates camera to top-down view of that room (600ms ease-in-out)
+      - Click: Animates camera to top-down view of that room (`--duration-camera` 800ms, `--ease-decelerate`)
   - **Divider**: 1px `--color-border-subtle`
   - **Stats Summary** (padding `--space-6`):
     - "SUMMARY" in `--text-label` `--color-text-faint`
     - Total area: `--font-mono` `--text-h4` `--color-text-heading` (e.g., "127.5 m²")
     - Room count: `--text-body-sm` `--color-text-muted` (e.g., "6 rooms detected")
     - Wall count: `--text-body-sm` `--color-text-muted`
+
+#### 5.12b RoomSidebarSkeleton
+- **Role**: Shimmer placeholder shown while session data is loading
+- **Position**: Inside RoomSidebar, replaces room list content until data arrives
+- **Structure** (mirrors RoomSidebar layout):
+  - Session header: 120×20px skeleton bar for title, 80×14px for session ID, 60×22px rounded pill for badge — all `--color-bg-elevated` with shimmer
+  - Divider: same 1px `--color-border-subtle`
+  - Room list: 5 skeleton RoomItems — each 56px tall with 12px circle (swatch), 100×14px bar (name), 50×12px bar (area) — staggered opacity 0.6 → 0.3 from top to bottom
+  - Stats: 80×20px bar, 100×14px bar, 80×14px bar
+- **Shimmer animation**:
+  ```css
+  @keyframes shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  /* background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-surface) 50%, var(--color-bg-elevated) 75%); */
+  /* background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite; */
+  ```
+- **Transition**: When data arrives, skeleton fades out (200ms) and real content fades in (300ms)
 
 #### 5.13 ControlHint
 - **Role**: First-visit overlay teaching orbit controls
@@ -395,6 +431,8 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
 - **Expanded state**: Slides up to max 50vh, shows full RoomSidebar content
 - **Background**: `--color-bg-surface`, top border-radius `--radius-xl`, `box-shadow: 0 -4px 24px rgba(0,0,0,0.5)`
 - **Gesture**: Drag handle to expand/collapse. Also tappable.
+- **Animation**: Expand/collapse slides over 300ms with `--ease-decelerate` (expand) or `--ease-accelerate` (collapse).
+- **Room tap behavior**: When a user taps a room item inside the expanded bottom sheet, the sheet auto-collapses (300ms `--ease-accelerate`), then the camera animates to that room's top-down view (`--duration-camera` 800ms). The room must remain visible in the canvas — no layout obstruction from the collapsed sheet.
 
 ---
 
@@ -412,6 +450,10 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
   - **Info**: Left accent border 3px `--color-accent-blue`, icon in `--color-accent-blue`.
 - **Behavior**: Slides in from right (`translateX(100%) → translateX(0)`, 300ms `--ease-decelerate`). Auto-dismisses after 5 seconds. Dismiss button fades toast out (`translateX(100%)`, 200ms `--ease-accelerate`). Multiple toasts stack vertically with `--space-2` gap, newest on bottom.
 - **Accessible**: `role="status"`, `aria-live="polite"`. Error toasts use `role="alert"`, `aria-live="assertive"`.
+- **Specific toast messages**:
+  - Export glTF failure → Error variant: "Export failed — please try again"
+  - Export OBJ failure → Error variant: "Export failed — please try again"
+  - Export success → Success variant: "File downloaded successfully"
 
 #### 5.17 MobileNavDrawer (< 768px)
 - **Role**: Slide-in navigation menu for mobile viewports
@@ -613,7 +655,9 @@ Applies globally. Amber-tinted selection reinforces the warm accent palette.
 | dining | `--color-room-dining` | #d2a8ff | MeshStandardMaterial, opacity 0.35 |
 | (default/unknown) | `--color-room-default` | #8b949e | MeshStandardMaterial, opacity 0.35 |
 
-Matching is case-insensitive and partial (e.g., "Living Room" matches "living").
+| (windows) | `--color-window-glass` | rgba(88,166,255,0.25) | MeshStandardMaterial, transparent, opacity 0.25, roughness 0.1, metalness 0.3 |
+
+Matching for room types is case-insensitive and partial (e.g., "Living Room" matches "living").
 
 ---
 
@@ -635,6 +679,7 @@ Matching is case-insensitive and partial (e.g., "Living Room" matches "living").
 | `src/components/viewer/ViewerCanvas.tsx` | Three.js scene |
 | `src/components/viewer/ViewerToolbar.tsx` | Export + view controls |
 | `src/components/viewer/RoomSidebar.tsx` | Room list panel |
+| `src/components/viewer/RoomSidebarSkeleton.tsx` | Sidebar shimmer loading state |
 | `src/components/viewer/ControlHint.tsx` | First-visit hint overlay |
 | `src/components/viewer/MobileBottomSheet.tsx` | Mobile sidebar |
 | `src/components/viewer/ViewerLoadingState.tsx` | Model loading spinner/placeholder |
@@ -667,6 +712,11 @@ CAMERA_FAR:         500
 ORBIT_DAMPING:      0.1
 LABEL_Y_OFFSET:     0.05   (meters above floor)
 DOOR_ARC_COLOR:     rgba(232, 164, 53, 0.4)
+WINDOW_SILL_H:      0.9     (meters from floor)
+WINDOW_HEAD_H:      2.1     (meters from floor)
+WINDOW_GLASS_OPACITY: 0.25
+WINDOW_GLASS_ROUGHNESS: 0.1
+WINDOW_GLASS_METALNESS: 0.3
 CAMERA_ANIM_MS:     800
 ```
 
@@ -749,12 +799,145 @@ The development agent MUST add these `data-testid` attributes to enable Playwrig
 | `room-item` | RoomSidebar | Each room list item (add `data-room-name` attribute) |
 | `room-label` | ViewerCanvas | Room label sprite wrapper (rendered as Three.js group with `userData.testId`) |
 | `stats-summary` | RoomSidebar | Stats section container |
-| `extraction-badge` | RoomSidebar | "VECTOR" or "AI VISION" pill |
+| `extraction-badge` | RoomSidebar | "VECTOR", "AI VISION", or "HYBRID" pill |
+| `sidebar-skeleton` | RoomSidebarSkeleton | Shimmer skeleton container |
 | `control-hint` | ControlHint | Hint overlay container |
 | `bottom-sheet` | MobileBottomSheet | Root container |
 | `bottom-sheet-handle` | MobileBottomSheet | Drag handle bar |
 | `toast` | ToastNotification | Each toast container |
 | `session-not-found` | SessionNotFound | Root container |
+
+---
+
+## APPENDIX F — CSS Module Naming Conventions
+
+All component styling uses CSS Modules (`.module.css` files co-located with each component). No global utility classes, no Tailwind, no styled-components.
+
+### File Structure
+```
+src/components/viewer/ViewerToolbar.tsx
+src/components/viewer/ViewerToolbar.module.css
+```
+
+### Class Naming
+- Use **camelCase** for CSS Module class names (required by default CSS Module exports):
+  - `.wrapper`, `.roomItem`, `.activeStep`, `.exportButton`
+- BEM-like naming for variants:
+  - `.badge`, `.badgeVector`, `.badgeVision`, `.badgeHybrid`
+  - `.button`, `.buttonPrimary`, `.buttonSecondary`, `.buttonDisabled`
+- State classes:
+  - `.isActive`, `.isDragging`, `.isExpanded`, `.isCollapsed`
+
+### Token Usage Rules
+```css
+/* CORRECT — use tokens for all visual properties */
+.wrapper {
+  background: var(--color-bg-surface);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  transition: background var(--duration-normal) var(--ease-default);
+}
+
+/* WRONG — never hardcode these values */
+.wrapper {
+  background: #161b22;
+  padding: 24px;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 200ms ease;
+}
+```
+
+### Import Pattern
+```tsx
+import styles from './ViewerToolbar.module.css';
+
+export function ViewerToolbar() {
+  return <div className={styles.wrapper}>...</div>;
+}
+```
+
+### Conditional Classes
+Use template literals or a small helper — no dependency on `classnames` or `clsx` libraries:
+```tsx
+<div className={`${styles.badge} ${isVector ? styles.badgeVector : styles.badgeVision}`}>
+```
+
+---
+
+## APPENDIX G — Page Metadata & Open Graph
+
+Each page must set appropriate `<title>`, `<meta description>`, and Open Graph tags via Next.js `metadata` export in each `page.tsx`.
+
+### Landing Page (`/`)
+```
+title: "PlanView 3D — Transform Floor Plans Into Interactive 3D Models"
+description: "Upload any PDF floor plan and get an interactive, exportable 3D model in seconds. Powered by AI."
+og:title: "PlanView 3D — Floor Plan to 3D in Seconds"
+og:description: "Upload a PDF floor plan → get an interactive 3D model. Export to glTF or OBJ."
+og:image: "/og-image.png"  (1200×630, dark bg with amber text + wireframe 3D preview)
+og:type: "website"
+```
+
+### Upload Page (`/upload`)
+```
+title: "Upload Floor Plan — PlanView 3D"
+description: "Drag and drop your PDF floor plan to generate an interactive 3D model."
+```
+
+### Viewer Page (`/viewer/[sessionId]`)
+```
+title: "3D Viewer — PlanView 3D"
+description: "Interactive 3D floor plan viewer. Rotate, pan, zoom, and export your model."
+```
+
+### Global (in `layout.tsx`)
+```
+themeColor: "#0d1117"
+viewport: "width=device-width, initial-scale=1, viewport-fit=cover"
+favicon: "/favicon.svg" (simple isometric cube icon in --color-accent-amber on transparent)
+```
+
+---
+
+## APPENDIX H — 3D Window Rendering Constants
+
+```
+WINDOW_NOTCH_DEPTH:     0.5   (fraction of wall thickness — half recessed)
+WINDOW_GLASS_COLOR:     rgba(88, 166, 255, 0.25)
+WINDOW_GLASS_ROUGHNESS: 0.1
+WINDOW_GLASS_METALNESS: 0.3
+WINDOW_GLASS_OPACITY:   0.25
+WINDOW_FRAME_COLOR:     #8b949e
+WINDOW_FRAME_THICKNESS: 0.02  (meters — thin mullion lines)
+WINDOW_MULLION_POSITIONS: [0.333, 0.667]  (fraction of opening height)
+WINDOW_SILL_HEIGHT:     0.9   (meters from floor — standard sill)
+WINDOW_HEAD_HEIGHT:     2.1   (meters from floor — standard head)
+```
+
+Windows are looked up from `FloorPlanSchema.windows` where each window has a `wallIndex` pointing to the parent wall. The window center position along the wall is determined by `Window.position` projected onto the wall line segment. If `wallIndex` references an invalid wall, the window is silently skipped (no crash).
+
+---
+
+## APPENDIX I — Responsive Component Behavior Matrix
+
+This table summarizes how each component adapts across breakpoints. The development agent must verify all behaviors.
+
+| Component | Mobile (< 768px) | Tablet (768–1024px) | Desktop (> 1024px) |
+|---|---|---|---|
+| NavBar | Logo + hamburger only | Logo + inline links | Logo + inline links |
+| HeroSection | Single-column, no 3D preview, `--text-h1` heading | Two-column, 3D preview visible, `--text-hero` heading | Two-column, 3D preview visible, `--text-hero` heading |
+| HowItWorks | Single-column stack, no connector lines | 3-column, connector lines visible | 3-column, connector lines visible |
+| FeatureHighlights | Single-column stack | 2×2 grid | 2×2 grid |
+| UploadZone | Full-width (1rem padding), min-height 280px | Centered, max-width 560px | Centered, max-width 560px |
+| ViewerCanvas | 100vw × 100vh (behind bottom sheet) | 100vw × 100vh (minus 64px icon strip) | Fills space right of 320px sidebar |
+| RoomSidebar | Bottom sheet (collapsed 64px, expanded 50vh) | 64px icon strip, tap to expand to 280px | 320px fixed sidebar |
+| ViewerToolbar | 3 buttons (reset, glTF, OBJ), no top-down | Full 4-button layout | Full 4-button layout |
+| MobileBottomSheet | Visible, drag-to-expand | Hidden (tablet uses icon strip) | Hidden |
+| MobileNavDrawer | Slide-in from right, 280px wide | Hidden | Hidden |
+| ControlHint | 2-line layout (rotate + zoom only, pan omitted) | Single-line, all 3 hints | Single-line, all 3 hints |
+| Footer | Centered, `--space-4` padding | Centered, `--space-6` padding | Centered, `--space-6` padding |
 
 ---
 
