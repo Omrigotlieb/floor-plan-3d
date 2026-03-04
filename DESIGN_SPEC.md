@@ -2,8 +2,8 @@
 
 > Produced by: UI Designer ORCA (Stage 3: design_review — enhanced)
 > Date: 2026-03-04
-> Revision: 3 — added window rendering, hybrid badge, CSS Module conventions, page metadata, loading skeletons, appendix F–H
-> Status: Final — ready for Development Agent implementation
+> Revision: 4 — design review pass: empty states, tablet sidebar detail, page transitions, ErrorDisplay animation, toast limits, NavBar scroll threshold, mobile hero fallback
+> Status: Final — reviewed and approved for Development Agent implementation
 
 ---
 
@@ -229,7 +229,7 @@ All interactive elements (buttons, links, nav items, room list items, toolbar ic
 - **Height**: 64px
 - **Background**: `--color-bg-primary` with `backdrop-filter: blur(12px)` and 85% opacity when scrolled (transparent at top of landing page)
 - **Content**: Logo (left) — "PLANVIEW 3D" in `--font-display` weight 700, `--color-text-heading`. Nav links (right) — "Upload", "GitHub" in `--text-body-sm`, `--color-text-muted`, hover → `--color-text-primary`.
-- **Border**: Bottom 1px `--color-border-subtle`, appears on scroll via class toggle
+- **Border**: Bottom 1px `--color-border-subtle`, appears after scrolling past 48px (`scroll > 48`). Below 48px the NavBar background is fully transparent (landing page only). On upload and viewer pages, the opaque/bordered state is always active.
 - **Mobile**: Hamburger icon replaces nav links → slide-in drawer from right
 
 #### 5.2 HeroSection
@@ -243,7 +243,7 @@ All interactive elements (buttons, links, nav items, room list items, toolbar ic
   - **CTAButtons**: Row of two buttons:
     - Primary: "Upload Floor Plan" → links to `/upload`. Filled `--color-accent-amber` background, `--color-bg-primary` text, `--radius-md`, height 48px, `--text-body` weight 600. Hover: scale(1.02), `box-shadow: 0 0 24px var(--color-glow-amber)`.
     - Secondary: "See How It Works" → smooth-scrolls to HowItWorks section. Ghost style: transparent background, 1px `--color-border-default` border, `--color-text-primary` text. Hover: background `--color-bg-elevated`, border `--color-accent-amber`.
-  - **3D Preview** (right column, desktop only): Static or slowly auto-rotating wireframe render of a simple floor plan. Use a simplified Three.js canvas with wireframe walls in `--color-accent-blue` at 0.6 opacity on `--color-bg-viewer` background. This is decorative, not interactive. Falls back to a static SVG illustration on mobile.
+  - **3D Preview** (right column, desktop + tablet only): Static or slowly auto-rotating wireframe render of a simple floor plan. Use a simplified Three.js canvas with wireframe walls in `--color-accent-blue` at 0.6 opacity on `--color-bg-viewer` background. This is decorative, not interactive. On mobile (< 768px), the 3D preview column is hidden entirely — no SVG substitute, no placeholder. The hero is text-only on mobile to keep LCP fast and layout simple.
 
 #### 5.3 HowItWorksSection
 - **Role**: Three-step process explainer
@@ -313,6 +313,7 @@ All interactive elements (buttons, links, nav items, room list items, toolbar ic
 - **Style**: `--color-bg-surface` with left border 3px solid `--color-danger`, `--radius-md`, padding `--space-6`
 - **Content**: Error icon (triangle-exclamation, `--color-danger`), error title in `--text-h4` `--color-text-heading`, description in `--text-body-sm` `--color-text-muted`
 - **Action**: "Try Again" button below, ghost style like hero secondary CTA
+- **Entrance animation**: Slides in with `fadeInUp` (same as page-level), `--duration-enter` (500ms), `--ease-decelerate`. The left danger border also animates from 0 to 3px width over 300ms to draw the eye.
 - **Error types to display** (all must have visual treatment):
   - File too large (413) → "File exceeds 20MB limit. Please upload a smaller PDF."
   - Invalid file type (400) → "Please upload a PDF file. Other formats are not supported."
@@ -448,7 +449,7 @@ All interactive elements (buttons, links, nav items, room list items, toolbar ic
   - **Error**: Left accent border 3px `--color-danger`, icon in `--color-danger`. Text in `--text-body-sm` `--color-text-primary`.
   - **Success**: Left accent border 3px `--color-success`, icon in `--color-success`.
   - **Info**: Left accent border 3px `--color-accent-blue`, icon in `--color-accent-blue`.
-- **Behavior**: Slides in from right (`translateX(100%) → translateX(0)`, 300ms `--ease-decelerate`). Auto-dismisses after 5 seconds. Dismiss button fades toast out (`translateX(100%)`, 200ms `--ease-accelerate`). Multiple toasts stack vertically with `--space-2` gap, newest on bottom.
+- **Behavior**: Slides in from right (`translateX(100%) → translateX(0)`, 300ms `--ease-decelerate`). Auto-dismisses after 5 seconds. Dismiss button fades toast out (`translateX(100%)`, 200ms `--ease-accelerate`). Multiple toasts stack vertically with `--space-2` gap, newest on bottom. **Maximum 3 toasts visible** — when a 4th arrives, the oldest is immediately dismissed (animated out) to make room.
 - **Accessible**: `role="status"`, `aria-live="polite"`. Error toasts use `role="alert"`, `aria-live="assertive"`.
 - **Specific toast messages**:
   - Export glTF failure → Error variant: "Export failed — please try again"
@@ -480,6 +481,30 @@ All interactive elements (buttons, links, nav items, room list items, toolbar ic
 - **Background**: `--color-bg-viewer` (same as canvas, seamless transition)
 - **Transition**: When model is ready, loading state fades out (`opacity 1 → 0`, 300ms `--ease-accelerate`), canvas content fades in (`opacity 0 → 1`, 500ms `--ease-decelerate`)
 - **Error fallback**: If model fails to load after 15s, display inline error (same style as ErrorDisplay but within the canvas area, not the upload page)
+
+---
+
+## 5b. EMPTY & EDGE STATES
+
+### Zero-Room Viewer State
+If the parsed `FloorPlanSchema` has walls but an empty `rooms[]` array (valid — a building shell without named rooms):
+- **3D canvas**: Renders walls and grid normally. No room floor polygons or room labels.
+- **RoomSidebar**: The "ROOMS" section label still appears. Below it, display an empty state message: "No rooms detected" in `--text-body-sm` `--color-text-faint`, centered in the room list area. The chevron and color swatch are absent.
+- **Stats summary**: Shows "0 rooms detected", total area "—", wall count still populated.
+- **Export**: Still functional — walls are exportable even without room metadata.
+
+### Single-Wall / Minimal Geometry
+If only 3 walls are detected (the minimum threshold):
+- Render normally. The 3D scene may look sparse but this is acceptable.
+- The confidence badge will likely show "low" or "medium" — this is correct behavior.
+
+### Very Large Floor Plan (100+ walls)
+- No special visual treatment. OrbitControls and camera should handle it.
+- Performance note for dev agent: consider `THREE.BufferGeometry` merging for wall meshes if > 50 walls to maintain 30fps target.
+
+### Session Loading Failure (Network)
+If `/api/session/[id]` returns a network error (not 404):
+- Show `ViewerLoadingState` for up to 15 seconds, then transition to an inline error within the canvas area: "Failed to load session — please check your connection and try again" with a "Retry" button (primary style). This is distinct from `SessionNotFound` (which is a 404).
 
 ---
 
@@ -562,6 +587,12 @@ All interactive elements (buttons, links, nav items, room list items, toolbar ic
 - IntersectionObserver with `threshold: 0.2` for section headings, `0.3` for cards
 - Each observed element starts with `opacity: 0; transform: translateY(24px)` and transitions to `opacity: 1; transform: translateY(0)` when intersecting
 - Use a single CSS class `.reveal-visible` toggled by the observer
+
+### Page Transitions (Route Changes)
+- **Landing → Upload** (`/` → `/upload`): Content fades out (`opacity 1 → 0`, 150ms `--ease-accelerate`), new page fades in (`opacity 0 → 1`, 300ms `--ease-decelerate`). Use Next.js `loading.tsx` patterns or a simple CSS transition class on the `<main>` wrapper.
+- **Upload → Viewer** (`/upload` → `/viewer/[sessionId]`): The ProcessingStatus completes, pauses 400ms, then the page redirects. The viewer page enters with its own `fadeInUp` animation — no shared element transition needed.
+- **Any → Any (direct navigation)**: Standard browser navigation with `fadeInUp` entrance on the new page. No complex shared-element or morph transitions — keep it simple and fast.
+- **Back navigation**: Same fade entrance, no special back-swipe animation.
 
 ### Focus States (Keyboard Accessibility)
 - **All interactive elements** (buttons, links, inputs, room list items): on `:focus-visible`, apply `outline: 2px solid var(--color-focus-ring)`, `outline-offset: 2px`. Remove default browser outline.
@@ -932,12 +963,34 @@ This table summarizes how each component adapts across breakpoints. The developm
 | FeatureHighlights | Single-column stack | 2×2 grid | 2×2 grid |
 | UploadZone | Full-width (1rem padding), min-height 280px | Centered, max-width 560px | Centered, max-width 560px |
 | ViewerCanvas | 100vw × 100vh (behind bottom sheet) | 100vw × 100vh (minus 64px icon strip) | Fills space right of 320px sidebar |
-| RoomSidebar | Bottom sheet (collapsed 64px, expanded 50vh) | 64px icon strip, tap to expand to 280px | 320px fixed sidebar |
+| RoomSidebar | Bottom sheet (collapsed 64px, expanded 50vh) | 64px icon strip (see Tablet Sidebar Strip below), tap to expand to 280px overlay | 320px fixed sidebar |
 | ViewerToolbar | 3 buttons (reset, glTF, OBJ), no top-down | Full 4-button layout | Full 4-button layout |
 | MobileBottomSheet | Visible, drag-to-expand | Hidden (tablet uses icon strip) | Hidden |
 | MobileNavDrawer | Slide-in from right, 280px wide | Hidden | Hidden |
 | ControlHint | 2-line layout (rotate + zoom only, pan omitted) | Single-line, all 3 hints | Single-line, all 3 hints |
 | Footer | Centered, `--space-4` padding | Centered, `--space-6` padding | Centered, `--space-6` padding |
+
+---
+
+## APPENDIX J — Tablet Sidebar Strip (768–1024px)
+
+On tablet viewports, the RoomSidebar collapses to a 64px-wide vertical icon strip fixed to the left edge of the viewer.
+
+### Collapsed Strip Layout (top to bottom)
+1. **Extraction badge icon** (top, `--space-4` from top): A small colored dot (8px circle) representing extraction method — green (`--color-success`) for vector, amber (`--color-accent-amber`) for vision, blue (`--color-accent-blue`) for hybrid. Tap shows a tooltip with the full badge label.
+2. **Room count** (below badge, centered): Number of rooms in `--font-mono` `--text-caption` `--color-text-muted` (e.g., "6")
+3. **Divider**: 1px horizontal line, `--color-border-subtle`, `--space-4` vertical margin
+4. **Room color dots** (vertical stack, `--space-3` gap): One 12px circle per room using the room's `--color-room-*` token. Tapping a dot expands the sidebar AND focuses the camera on that room. Max 8 dots visible — if more rooms exist, show a `+N` label below in `--text-caption` `--color-text-faint`.
+5. **Expand chevron** (bottom, `--space-4` from bottom): Right-pointing chevron icon (16px, `--color-text-faint`), hover → `--color-text-muted`. Tap expands the sidebar.
+
+### Expanded State (Overlay)
+- Width: 280px, overlays the canvas (does NOT push the canvas)
+- Background: `--color-bg-surface`, right border 1px `--color-border-subtle`
+- `box-shadow: 4px 0 24px rgba(0,0,0,0.4)` for depth
+- Shows full RoomSidebar content identical to desktop
+- Close by tapping the overlay backdrop (semi-transparent `--color-overlay`) or the collapse chevron (left-pointing) at the top-right of the expanded panel
+- Animation: Slides in from left (`translateX(-280px) → translateX(0)`, 250ms `--ease-decelerate`). Backdrop fades in simultaneously.
+- On room tap: sidebar auto-collapses (200ms `--ease-accelerate`), camera animates to room
 
 ---
 
