@@ -1,7 +1,8 @@
 # DESIGN SPECIFICATION — Floor Plan 3D Builder
 
-> Produced by: UI Designer ORCA (Stage 2: design_review)
+> Produced by: UI Designer ORCA (Stage 3: design_review — enhanced)
 > Date: 2026-03-04
+> Revision: 2 — added ToastNotification, MobileNavDrawer, ViewerLoadingState, focus states, scrollbar/selection styling, icon spec, data-testid map
 > Status: Final — ready for Development Agent implementation
 
 ---
@@ -48,6 +49,11 @@ The visual language draws from architectural drafting tables: dark matte surface
   --color-border-default:   #30363d;   /* Standard borders */
   --color-border-subtle:    #21262d;   /* Subtle dividers */
   --color-border-accent:    rgba(232, 164, 53, 0.4); /* Amber glow border */
+
+  /* ── Focus & Selection ── */
+  --color-focus-ring:       rgba(232, 164, 53, 0.8);  /* Keyboard focus outline */
+  --color-selection-bg:     rgba(232, 164, 53, 0.25); /* Text ::selection background */
+  --color-selection-text:   #f0f6fc;                   /* Text ::selection foreground */
 
   /* ── Overlays ── */
   --color-overlay:          rgba(1, 4, 9, 0.7);   /* Backdrop */
@@ -392,6 +398,49 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
 
 ---
 
+### Shared Components (used across pages)
+
+#### 5.16 ToastNotification
+- **Role**: Ephemeral feedback messages (export errors, copy-to-clipboard confirmations)
+- **Position**: Fixed bottom-right of viewport, `--space-6` from edges, `--z-toast`
+- **Size**: max-width 360px, min-width 280px
+- **Style**: `--color-bg-elevated`, 1px `--color-border-default` border, `--radius-lg`, `box-shadow: 0 8px 32px rgba(0,0,0,0.5)`, padding `--space-4` `--space-5`
+- **Layout**: Row — icon (left, 20px) + message text (center, flex: 1) + dismiss X button (right, 16px)
+- **Variants**:
+  - **Error**: Left accent border 3px `--color-danger`, icon in `--color-danger`. Text in `--text-body-sm` `--color-text-primary`.
+  - **Success**: Left accent border 3px `--color-success`, icon in `--color-success`.
+  - **Info**: Left accent border 3px `--color-accent-blue`, icon in `--color-accent-blue`.
+- **Behavior**: Slides in from right (`translateX(100%) → translateX(0)`, 300ms `--ease-decelerate`). Auto-dismisses after 5 seconds. Dismiss button fades toast out (`translateX(100%)`, 200ms `--ease-accelerate`). Multiple toasts stack vertically with `--space-2` gap, newest on bottom.
+- **Accessible**: `role="status"`, `aria-live="polite"`. Error toasts use `role="alert"`, `aria-live="assertive"`.
+
+#### 5.17 MobileNavDrawer (< 768px)
+- **Role**: Slide-in navigation menu for mobile viewports
+- **Trigger**: Hamburger icon (24px, three horizontal lines, `--color-text-muted`) in NavBar right slot
+- **Position**: Fixed, full height, right-aligned, width 280px, `--z-modal`
+- **Backdrop**: `--color-overlay` covering entire viewport, `--z-overlay`, tappable to close
+- **Background**: `--color-bg-surface`, left border 1px `--color-border-subtle`
+- **Content** (top to bottom):
+  - Close button (X icon, 24px, `--color-text-muted`, top-right, `--space-5` padding) — hover → `--color-text-primary`
+  - Navigation links: vertical stack, each 56px tall, padding `--space-4` `--space-6`, `--text-body` `--color-text-primary`. Divider 1px `--color-border-subtle` between items.
+  - Links: "Upload", "GitHub"
+  - Active page link: `--color-accent-amber` text, left border 3px `--color-accent-amber`
+- **Animation**: Drawer slides in from right (`translateX(100%) → translateX(0)`, 250ms `--ease-decelerate`). Backdrop fades in (`opacity 0 → 1`, 200ms). Close reverses both.
+- **Accessible**: Focus trapped within drawer while open. Escape key closes. `aria-label="Navigation menu"`, `role="dialog"`.
+
+#### 5.18 ViewerLoadingState
+- **Role**: Placeholder displayed on viewer page while the 3D model is being fetched/built
+- **Position**: Fills the ViewerCanvas area (replaces canvas content until model is ready)
+- **Layout**: Centered column within the canvas region
+- **Content**:
+  - Animated spinner: 48px ring, 3px stroke, `--color-accent-amber` partial arc rotating 360deg over 1s (linear, infinite). Remaining arc in `--color-border-subtle`.
+  - "Building your 3D model..." in `--text-body` `--color-text-muted`, `--space-4` below spinner
+  - Session ID in `--font-mono` `--text-caption` `--color-text-faint`, `--space-2` below
+- **Background**: `--color-bg-viewer` (same as canvas, seamless transition)
+- **Transition**: When model is ready, loading state fades out (`opacity 1 → 0`, 300ms `--ease-accelerate`), canvas content fades in (`opacity 0 → 1`, 500ms `--ease-decelerate`)
+- **Error fallback**: If model fails to load after 15s, display inline error (same style as ErrorDisplay but within the canvas area, not the upload page)
+
+---
+
 ## 6. ANIMATION & MOTION
 
 ### Timing Tokens
@@ -472,6 +521,50 @@ https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&fami
 - Each observed element starts with `opacity: 0; transform: translateY(24px)` and transitions to `opacity: 1; transform: translateY(0)` when intersecting
 - Use a single CSS class `.reveal-visible` toggled by the observer
 
+### Focus States (Keyboard Accessibility)
+- **All interactive elements** (buttons, links, inputs, room list items): on `:focus-visible`, apply `outline: 2px solid var(--color-focus-ring)`, `outline-offset: 2px`. Remove default browser outline.
+- **Primary CTA button**: focus ring uses `--color-focus-ring` with additional `box-shadow: 0 0 0 4px var(--color-glow-amber)` for extra emphasis.
+- **3D canvas container**: on focus, show a subtle 1px `--color-accent-amber` border around the canvas (not an outline, to avoid clipping issues with the toolbar overlay).
+- **Skip-to-content link**: Hidden offscreen until focused — `position: absolute`, `top: -100%`. On focus: `top: var(--space-2)`, `left: var(--space-2)`, `--color-bg-elevated` background, `--color-text-primary` text, `--radius-md`, padding `--space-2` `--space-4`, `--z-toast`. Text: "Skip to main content".
+- **Tab order by page**:
+  - Landing: Skip link → NavBar logo → Nav links → Hero primary CTA → Hero secondary CTA → (scroll) How It Works → Features → Footer
+  - Upload: Skip link → NavBar → Upload zone (acts as button) → Process button (when visible)
+  - Viewer: Skip link → NavBar → Room sidebar items → Export buttons in toolbar
+
+### Scrollbar Styling (Dark Theme)
+```css
+/* WebKit scrollbars (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-inset);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-faint);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-default) var(--color-bg-inset);
+}
+```
+Apply to: RoomSidebar room list (scrollable overflow), MobileBottomSheet content area. Page-level scrollbar visible only on landing page.
+
+### Text Selection
+```css
+::selection {
+  background: var(--color-selection-bg);
+  color: var(--color-selection-text);
+}
+```
+Applies globally. Amber-tinted selection reinforces the warm accent palette.
+
 ### Motion Preferences
 - Respect `prefers-reduced-motion: reduce` — disable all `@keyframes` animations, set all transition durations to 0ms, disable 3D camera entrance animation. Keep essential state transitions (color, opacity) instant.
 
@@ -544,6 +637,9 @@ Matching is case-insensitive and partial (e.g., "Living Room" matches "living").
 | `src/components/viewer/RoomSidebar.tsx` | Room list panel |
 | `src/components/viewer/ControlHint.tsx` | First-visit hint overlay |
 | `src/components/viewer/MobileBottomSheet.tsx` | Mobile sidebar |
+| `src/components/viewer/ViewerLoadingState.tsx` | Model loading spinner/placeholder |
+| `src/components/shared/ToastNotification.tsx` | Toast notification system |
+| `src/components/layout/MobileNavDrawer.tsx` | Mobile navigation drawer |
 | `src/app/page.tsx` | Landing page (`/`) |
 | `src/app/upload/page.tsx` | Upload page |
 | `src/app/viewer/[sessionId]/page.tsx` | Viewer page |
@@ -573,6 +669,92 @@ LABEL_Y_OFFSET:     0.05   (meters above floor)
 DOOR_ARC_COLOR:     rgba(232, 164, 53, 0.4)
 CAMERA_ANIM_MS:     800
 ```
+
+---
+
+## APPENDIX D — Icon Specification
+
+All icons are inline SVGs. No icon fonts, no emoji, no image files.
+
+### Style Rules
+| Property | Value |
+|---|---|
+| Stroke width | 1.5px (default), 2px for small icons (< 16px) |
+| Stroke linecap | `round` |
+| Stroke linejoin | `round` |
+| Fill | `none` (outline style only) |
+| Color | `currentColor` (inherits from parent text color token) |
+| Viewbox | `0 0 24 24` (standard) or `0 0 16 16` (small) |
+
+### Icon Inventory
+
+| Name | Usage | Description (for SVG creation) |
+|---|---|---|
+| `upload` | UploadZone, HowItWorks step 1 | Arrow pointing up from a horizontal tray |
+| `processing` | HowItWorks step 2 | CPU chip with circuit lines |
+| `cube-3d` | HowItWorks step 3 | Isometric cube in wireframe |
+| `download` | Export buttons | Arrow pointing down into a tray |
+| `home` | ViewerToolbar reset view | Simple house outline |
+| `grid-plan` | ViewerToolbar top-down view | 2x2 grid squares |
+| `chevron-right` | RoomSidebar room items | Right-pointing angle bracket |
+| `alert-triangle` | ErrorDisplay | Triangle with exclamation mark |
+| `check` | ProcessingStatus completed step | Simple checkmark |
+| `x-close` | Toast dismiss, MobileNavDrawer close | X mark (two diagonal lines) |
+| `menu` | NavBar hamburger (mobile) | Three horizontal lines |
+| `mouse-drag` | ControlHint rotate | Mouse with motion arrows |
+| `option-drag` | ControlHint pan | Option key symbol + drag arrow |
+| `scroll` | ControlHint zoom | Mouse with up/down arrows |
+| `pdf-file` | UploadZone file selected | Document with "PDF" text |
+| `external-link` | NavBar GitHub link | Arrow exiting a square |
+
+### Size Scale
+- **16px**: Inline with text (chevrons, small indicators)
+- **20px**: Toolbar buttons, toast icons, nav icons
+- **24px**: NavBar hamburger, drawer close, upload zone action icons
+- **48px**: Upload zone hero icon, HowItWorks step icons (inside 64px circle)
+
+---
+
+## APPENDIX E — Data-testid Attribute Map (for E2E Tests)
+
+The development agent MUST add these `data-testid` attributes to enable Playwright E2E tests:
+
+| Attribute | Component | Element |
+|---|---|---|
+| `nav-bar` | NavBar | Root `<nav>` element |
+| `nav-hamburger` | NavBar | Mobile hamburger button |
+| `nav-drawer` | MobileNavDrawer | Drawer container |
+| `hero-section` | HeroSection | Root `<section>` element |
+| `hero-cta-upload` | HeroSection | Primary CTA "Upload Floor Plan" button |
+| `hero-cta-howit` | HeroSection | Secondary CTA "See How It Works" button |
+| `how-it-works` | HowItWorksSection | Root `<section>` element |
+| `feature-card` | FeatureHighlights | Each feature card `<div>` |
+| `upload-zone` | UploadZone | Drop zone container `<div>` |
+| `upload-file-input` | UploadZone | Hidden `<input type="file">` |
+| `upload-submit` | UploadZone | "Process Floor Plan" button |
+| `upload-remove` | UploadZone | "Remove" file button |
+| `processing-status` | ProcessingStatus | Root container |
+| `processing-step` | ProcessingStatus | Each step item (add index via `data-step="0"`) |
+| `error-display` | ErrorDisplay | Root container |
+| `error-retry` | ErrorDisplay | "Try Again" button |
+| `viewer-layout` | ViewerLayout | Root container |
+| `viewer-canvas` | ViewerCanvas | Three.js `<Canvas>` wrapper `<div>` |
+| `viewer-loading` | ViewerLoadingState | Loading spinner container |
+| `viewer-toolbar` | ViewerToolbar | Toolbar container |
+| `btn-reset-view` | ViewerToolbar | Reset view button |
+| `btn-top-down` | ViewerToolbar | Top-down view button |
+| `btn-export-gltf` | ViewerToolbar | Export glTF button |
+| `btn-export-obj` | ViewerToolbar | Export OBJ button |
+| `room-sidebar` | RoomSidebar | Root container |
+| `room-item` | RoomSidebar | Each room list item (add `data-room-name` attribute) |
+| `room-label` | ViewerCanvas | Room label sprite wrapper (rendered as Three.js group with `userData.testId`) |
+| `stats-summary` | RoomSidebar | Stats section container |
+| `extraction-badge` | RoomSidebar | "VECTOR" or "AI VISION" pill |
+| `control-hint` | ControlHint | Hint overlay container |
+| `bottom-sheet` | MobileBottomSheet | Root container |
+| `bottom-sheet-handle` | MobileBottomSheet | Drag handle bar |
+| `toast` | ToastNotification | Each toast container |
+| `session-not-found` | SessionNotFound | Root container |
 
 ---
 
