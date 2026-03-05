@@ -30,6 +30,7 @@
     "@types/three": "^0.171.0",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^28.1.0",
     "typescript": "^5",
     "vitest": "^2.1.9"
   }

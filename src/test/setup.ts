@@ -1,2 +1,2 @@
 // Vitest setup
-import "@testing-library/jest-dom";
+// @testing-library/jest-dom omitted — not required for logic-focused unit/integration tests
