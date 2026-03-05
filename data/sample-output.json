@@ -1,0 +1,46 @@
+{
+  "rooms": [
+    {
+      "name": "Living Room",
+      "vertices": [[50, 50], [250, 50], [250, 200], [50, 200]],
+      "area": 18.75
+    },
+    {
+      "name": "Bedroom",
+      "vertices": [[260, 50], [420, 50], [420, 200], [260, 200]],
+      "area": 12.0
+    },
+    {
+      "name": "Kitchen",
+      "vertices": [[50, 210], [200, 210], [200, 340], [50, 340]],
+      "area": 9.75
+    },
+    {
+      "name": "Bathroom",
+      "vertices": [[210, 210], [420, 210], [420, 340], [210, 340]],
+      "area": 15.6
+    }
+  ],
+  "walls": [
+    { "start": [50, 50],   "end": [420, 50],  "thickness": 0.2 },
+    { "start": [420, 50],  "end": [420, 340], "thickness": 0.2 },
+    { "start": [420, 340], "end": [50, 340],  "thickness": 0.2 },
+    { "start": [50, 340],  "end": [50, 50],   "thickness": 0.2 },
+    { "start": [250, 50],  "end": [250, 200], "thickness": 0.2 },
+    { "start": [50, 200],  "end": [420, 200], "thickness": 0.2 },
+    { "start": [200, 210], "end": [200, 340], "thickness": 0.2 }
+  ],
+  "doors": [
+    { "position": [148, 50], "width": 0.9, "angle": 0 },
+    { "position": [330, 50], "width": 0.9, "angle": 0 }
+  ],
+  "windows": [
+    { "position": [150, 340], "width": 1.2, "wallIndex": 2 },
+    { "position": [320, 340], "width": 1.2, "wallIndex": 2 }
+  ],
+  "scale": 0.026,
+  "confidence": "high",
+  "extractionMethod": "vector",
+  "rawWidth": 595,
+  "rawHeight": 842
+}

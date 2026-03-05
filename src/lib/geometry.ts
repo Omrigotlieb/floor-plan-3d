@@ -4,7 +4,7 @@
 import type { Wall } from "@/types/floor-plan";
 
 /** Default wall height in meters (standard residential ceiling height). */
-const DEFAULT_WALL_HEIGHT = 2.8;
+export const DEFAULT_WALL_HEIGHT = 2.8;
 
 /** Fallback scale used when PDF width is zero or invalid. */
 const FALLBACK_SCALE = 0.01;

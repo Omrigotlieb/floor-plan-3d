@@ -170,3 +170,24 @@ describe("exportToGltf", () => {
     expect((gltf.meshes as unknown[]).length).toBeGreaterThan(0);
   });
 });
+
+// ── exportToObj — wall count ───────────────────────────────────────────────────
+describe("exportToObj — wall count", () => {
+  it("should emit exactly 4 vertices per wall (4 walls → 16 v lines)", () => {
+    const obj = exportToObj(makeSchema());
+    const vLines = obj.split("\n").filter((l) => l.startsWith("v "));
+    // makeSchema has 4 walls × 4 vertices = 16
+    expect(vLines.length).toBe(16);
+  });
+});
+
+// ── parsePdf — scale metadata ─────────────────────────────────────────────────
+describe("parsePdf — scale metadata", () => {
+  it("should include rawWidth and rawHeight from the PDF viewport in the result", async () => {
+    mockVectorPdf();
+    const buffer = new ArrayBuffer(1024);
+    const result = await parsePdf(buffer);
+    expect(result.rawWidth).toBe(595);
+    expect(result.rawHeight).toBe(842);
+  });
+});

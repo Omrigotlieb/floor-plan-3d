@@ -139,4 +139,49 @@ describe("parseVisionResponse", () => {
     const noWalls = JSON.stringify({ rooms: [], scale: 0.01 });
     expect(() => parseVisionResponse(noWalls)).toThrow();
   });
+
+  it("should throw when the Vision response is a JSON array instead of an object", () => {
+    expect(() => parseVisionResponse(JSON.stringify([]))).toThrow(
+      "Vision API response must be a JSON object"
+    );
+  });
+
+  it("should throw when the Vision response is missing the required rooms field", () => {
+    const noRooms = JSON.stringify({
+      walls: [{ start: [0, 0], end: [1, 0], thickness: 0.2 }],
+      scale: 0.01,
+    });
+    expect(() => parseVisionResponse(noRooms)).toThrow(/rooms/);
+  });
+});
+
+// ── validateFloorPlanSchema — additional edge cases ───────────────────────────
+describe("validateFloorPlanSchema — edge cases", () => {
+  it("should return false when walls is not an array", () => {
+    expect(validateFloorPlanSchema({ walls: "bad", rooms: [], doors: [], windows: [], scale: 1 })).toBe(false);
+  });
+
+  it("should return false when scale is Infinity", () => {
+    const s = { ...{ rooms: [], walls: [{ start: [0,0], end: [1,0], thickness: 0.2 }], doors: [], windows: [] }, scale: Infinity };
+    expect(validateFloorPlanSchema(s)).toBe(false);
+  });
+
+  it("should return false when rooms is missing", () => {
+    expect(validateFloorPlanSchema({ walls: [{ start: [0,0], end: [1,0], thickness: 0.2 }], doors: [], windows: [], scale: 0.01 })).toBe(false);
+  });
+});
+
+// ── extrudeWall — additional cases ────────────────────────────────────────────
+describe("extrudeWall — additional cases", () => {
+  it("should respect a custom height parameter", () => {
+    const wall = { start: [0, 0] as [number, number], end: [1, 0] as [number, number], thickness: 0.2 };
+    const result = extrudeWall(wall, 3.5);
+    expect(result.height).toBe(3.5);
+  });
+
+  it("should preserve wall thickness in the extruded result", () => {
+    const wall = { start: [0, 0] as [number, number], end: [0, 5] as [number, number], thickness: 0.3 };
+    const result = extrudeWall(wall);
+    expect(result.thickness).toBe(0.3);
+  });
 });
